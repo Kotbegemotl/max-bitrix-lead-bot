@@ -1,34 +1,230 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="ru">
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
   <title>MAX Bot Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <style>
-    body { font-family: Arial; margin:40px; }
-    .stage { border:1px solid #ccc; padding:15px; margin-bottom:20px; }
-    textarea { width:100%; height:80px; }
-    input[type=file] { margin-top:5px; }
-    button { padding:8px 15px; margin-top:10px; }
+    body { font-family: Arial, sans-serif; margin: 24px; background: #fafafa; }
+    .container { max-width: 980px; margin: 0 auto; }
+    h1 { margin: 0 0 16px; }
+    h2 { margin: 24px 0 12px; }
+
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap: 12px; }
+    .topbar a { text-decoration:none; color:#0b57d0; }
+
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 16px;
+      margin: 12px 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,.03);
+    }
+
+    form .row { margin: 10px 0; }
+    label { display:block; margin-bottom: 6px; font-size: 14px; }
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #bbb;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    input[type="file"] { font-size: 14px; }
+
+    button {
+      padding: 10px 14px;
+      border: 1px solid #999;
+      border-radius: 6px;
+      background: #f3f3f3;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover { background: #eaeaea; }
+
+    .muted { color:#666; font-size: 13px; }
+    .msg-text { font-size: 15px; margin: 0 0 10px; white-space: pre-wrap; }
+
+    .msg-grid {
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .thumb {
+      width: 140px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .thumb img {
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+      display:block;
+    }
+    .thumb .cap {
+      padding: 6px 8px;
+      font-size: 12px;
+      color:#555;
+      word-break: break-all;
+    }
+
+    .msg-footer {
+      display:flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed #ddd;
+    }
+    .pill {
+      font-size: 12px;
+      color: #444;
+      background: #f4f6ff;
+      border: 1px solid #d7dcff;
+      padding: 4px 8px;
+      border-radius: 999px;
+    }
+    .actions { display:flex; gap: 8px; }
+    .actions a {
+      display:inline-block;
+      padding: 8px 10px;
+      border: 1px solid #999;
+      border-radius: 6px;
+      background: #fff;
+      text-decoration:none;
+      color:#111;
+      font-size: 14px;
+    }
+    .actions a:hover { background:#f5f5f5; }
+
+    .empty { padding: 14px; background:#fff; border:1px dashed #ccc; border-radius: 10px; }
+    .hint { font-size: 13px; color:#666; margin-top: 6px; }
   </style>
 </head>
+
 <body>
-  <h1>MAX Bot Admin</h1>
+  <div class="container">
 
-  <% stages.forEach(stage => { %>
-    <div class="stage">
-      <h2><%= stage.id %></h2>
-
-      <% stage.messages.forEach((msg, i) => { %>
-        <div>
-          <b>Сообщение <%= i+1 %></b><br>
-          <textarea><%= msg.text %></textarea><br>
-          Картинки: <%= msg.images.length %>
-        </div>
-        <hr>
-      <% }) %>
+    <div class="topbar">
+      <h1>MAX Bot Admin</h1>
+      <div class="actions">
+        <a href="/admin/logout">Выйти</a>
+      </div>
     </div>
-  <% }) %>
 
+    <div class="card">
+  <h2>Интервал отправки сообщений</h2>
+
+  <div class="muted" style="margin-bottom:10px;">
+    Сейчас: 
+    <b><%= settings?.intervalValue || 1 %></b>
+    <%= (settings?.intervalUnit === "days") ? "дн." : "нед." %>
+  </div>
+
+  <!-- ====== Интервал отправки сообщений ====== -->
+  <form method="post" action="/admin/settings">
+    <div class="row">
+      <label>Отправлять каждые</label>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input
+          type="number"
+          name="intervalValue"
+          min="1"
+          max="365"
+          value="<%= settings?.intervalValue || 1 %>"
+          style="width:120px;"
+          required
+        />
+
+        <select name="intervalUnit" style="padding:10px; border:1px solid #bbb; border-radius:6px;">
+          <option value="weeks" <%= (settings?.intervalUnit !== "days") ? "selected" : "" %>>недель</option>
+          <option value="days" <%= (settings?.intervalUnit === "days") ? "selected" : "" %>>дней</option>
+        </select>
+
+        <button type="submit">Сохранить</button>
+      </div>
+      <div class="hint">Например: 1 неделя, 7 дней, 2 недели.</div>
+    </div>
+  </form>
+</div>
+
+    <!-- ====== СОЗДАНИЕ СООБЩЕНИЯ ====== -->
+    <div class="card">
+      <h2>Создать сообщение</h2>
+      <div class="muted">
+        Загрузите 1+ файлов (необязательно), напишите текст и сохраните.
+      </div>
+
+      <!-- ВАЖНО:
+           enctype="multipart/form-data" обязателен для загрузки файлов -->
+      <form method="post" action="/admin/messages" enctype="multipart/form-data">
+        <div class="row">
+          <label>Файлы (можно несколько)</label>
+          <input type="file" name="files" multiple />
+          <div class="hint">Совет: можно выбрать несколько файлов через Ctrl/Shift.</div>
+        </div>
+
+        <div class="row">
+          <label>Текст сообщения</label>
+          <input type="text" name="text" placeholder="Введите текст сообщения..." required />
+        </div>
+
+        <div class="row">
+          <button type="submit">Сохранить</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ====== СПИСОК СООБЩЕНИЙ ====== -->
+    <div class="card">
+      <h2>Готовые сообщения</h2>
+
+      <% if (messages && messages.length) { %>
+        <% messages.forEach(msg => { %>
+          <div class="card">
+            <div class="msg-text"><%= msg.text %></div>
+
+            <% if (msg.images && msg.images.length) { %>
+              <div class="msg-grid">
+                <% msg.images.forEach(img => { %>
+                  <div class="thumb">
+                    <img src="/uploads/messages/<%= img %>" alt="image" />
+                    <div class="cap"><%= img %></div>
+                  </div>
+                <% }) %>
+              </div>
+            <% } %>
+
+            <div class="msg-footer">
+              <div class="pill">
+                ID: <%= msg.id %>
+                <% if (msg.createdAt) { %>
+                  • <%= new Date(msg.createdAt).toLocaleString("ru-RU") %>
+                <% } %>
+              </div>
+
+              <div class="actions">
+                <form method="post" action="/admin/messages/<%= msg.id %>/delete" style="display:inline;">
+                  <button type="submit" onclick="return confirm('Удалить сообщение?')">Удалить</button>
+                </form>
+                <a href="/admin/messages/<%= msg.id %>/edit">Редактировать</a>
+              </div>
+            </div>
+          </div>
+        <% }) %>
+      <% } else { %>
+        <div class="empty">Сообщений пока нет.</div>
+      <% } %>
+    </div>
+
+  </div>
 </body>
 </html>
+
 

@@ -4,4 +4,9 @@ node_modules
 logs
 *.log
 .DS_Store
+# runtime data
+.env
+data/
+uploads/
+
 

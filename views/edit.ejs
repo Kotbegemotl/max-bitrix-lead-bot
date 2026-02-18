@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Редактирование</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; background:#fafafa; }
+    .container { max-width: 980px; margin: 0 auto; }
+    .card { background:#fff; border:1px solid #ddd; border-radius:10px; padding:16px; margin:12px 0; }
+    input[type="text"] { width:100%; padding:10px; border:1px solid #bbb; border-radius:6px; font-size:14px; }
+    button, a.btn { padding:10px 14px; border:1px solid #999; border-radius:6px; background:#f3f3f3; cursor:pointer; font-size:14px; text-decoration:none; color:#111; }
+    button:hover, a.btn:hover { background:#eaeaea; }
+    .row { margin:10px 0; }
+    .muted { color:#666; font-size:13px; }
+    .grid { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; }
+    .thumb { width:220px; border:1px solid #ddd; border-radius:10px; overflow:hidden; background:#fff; }
+    .thumb img { width:100%; height:140px; object-fit:cover; display:block; }
+    .cap { padding:8px 10px; font-size:12px; color:#555; word-break:break-all; }
+    .controls { padding:10px; border-top:1px solid #eee; display:flex; flex-direction:column; gap:8px; }
+    .actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    label { font-size:13px; color:#222; }
+    .danger { border-color:#c55; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Редактирование сообщения</h1>
+      <div class="muted">ID: <%= msg.id %></div>
+
+      <form method="post" action="<%= adminPath %>/messages/<%= msg.id %>" enctype="multipart/form-data">
+        <div class="row">
+          <label>Текст</label>
+          <input type="text" name="text" value="<%- msg.text %>" required />
+        </div>
+
+        <div class="row">
+          <h3 style="margin:10px 0 6px;">Текущие изображения</h3>
+          <div class="muted">
+            Чтобы удалить или заменить конкретное изображение — отметь чекбокс и (опционально) выбери новый файл.
+            Если чекбокс отмечен, а файл не выбран — изображение будет удалено.
+          </div>
+
+          <% const imgs = (msg.images && msg.images.length) ? msg.images : []; %>
+
+          <% if (!imgs.length) { %>
+            <div class="muted" style="margin-top:10px;">Нет изображений.</div>
+          <% } else { %>
+            <div class="grid">
+              <% imgs.forEach((img, i) => { %>
+                <div class="thumb">
+                  <img src="/uploads/messages/<%= img %>" alt="img" />
+                  <div class="cap"><b>#<%= i %></b> — <%= img %></div>
+
+                  <div class="controls">
+                    <label>
+                      <input type="checkbox" name="remove_<%= i %>" />
+                      Удалить / заменить это изображение
+                    </label>
+
+                    <label>
+                      Новый файл (если хочешь заменить):
+                      <input type="file" name="replace_<%= i %>" />
+                    </label>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="row">
+          <h3 style="margin:10px 0 6px;">Добавить новые изображения</h3>
+          <div class="muted">Эти файлы добавятся к сообщению (не заменяют существующие).</div>
+          <input type="file" name="files" multiple />
+        </div>
+
+        <div class="row actions">
+          <button type="submit">Сохранить</button>
+          <a class="btn" href="<%= adminPath %>">Назад</a>
+        </div>
+      </form>
+
+      <form method="post" action="<%= adminPath %>/messages/<%= msg.id %>/delete" style="margin-top:14px;">
+        <button class="danger" type="submit" onclick="return confirm('Удалить сообщение полностью?')">
+          Удалить сообщение
+        </button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
