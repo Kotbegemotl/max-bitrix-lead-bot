@@ -331,24 +331,27 @@ app.listen(PORT, "127.0.0.1", () => {
 app.post("/max/webhook", async (req, res) => {
   try {
     console.log("MAX update:", JSON.stringify(req.body, null, 2));
-
     const update = req.body;
 
-    // входящее сообщение
-    if (update?.message) {
-      const userId = update.message.sender?.id;
-      const text = update.message.text || "";
+    // user id: либо update.user.id (как у тебя в логах), либо update.message.sender.id (если придёт по доке)
+    const userId = update?.user?.id || update?.message?.sender?.id;
 
-      console.log("MAX user:", userId, "text:", text);
+    // текст: либо update.message.text (как у тебя), либо update.message.body.text (как в объектах Message/Body)
+    const text =
+      update?.message?.text ||
+      update?.message?.body?.text ||
+      "";
 
-      // пока просто ответим тестово
-      await sendMaxMessage(userId, "Привет! Я получил ваше сообщение 👍");
+    console.log("MAX userId:", userId, "text:", text);
+
+    if (userId && text) {
+      await sendMaxMessageToUser(userId, "Привет! Я получил ваше сообщение 👍");
     }
 
-    res.sendStatus(200);
+    return res.sendStatus(200);
   } catch (e) {
     console.error("MAX webhook error:", e);
-    res.sendStatus(500);
+    return res.sendStatus(500);
   }
 });
 
