@@ -327,4 +327,48 @@ app.listen(PORT, "127.0.0.1", () => {
   console.log(`Server started on http://127.0.0.1:${PORT}`);
 });
 
-// test deploy
+// ===== MAX WEBHOOK =====
+app.post("/max/webhook", async (req, res) => {
+  try {
+    console.log("MAX update:", JSON.stringify(req.body, null, 2));
+
+    const update = req.body;
+
+    // входящее сообщение
+    if (update?.message) {
+      const userId = update.message.sender?.id;
+      const text = update.message.text || "";
+
+      console.log("MAX user:", userId, "text:", text);
+
+      // пока просто ответим тестово
+      await sendMaxMessage(userId, "Привет! Я получил ваше сообщение 👍");
+    }
+
+    res.sendStatus(200);
+  } catch (e) {
+    console.error("MAX webhook error:", e);
+    res.sendStatus(500);
+  }
+});
+
+// ===== отправка сообщения в MAX =====
+
+async function sendMaxMessage(userId, text) {
+  const url = "https://api.max.ru/messages";
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.MAX_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      user_id: userId,
+      text: text,
+    }),
+  });
+
+  const data = await resp.text();
+  console.log("MAX send resp:", data);
+}
