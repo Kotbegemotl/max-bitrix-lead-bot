@@ -357,25 +357,22 @@ app.post("/max/webhook", async (req, res) => {
 
 // ===== отправка сообщения в MAX =====
 
-async function sendMaxMessage(userId, text) {
-  const url = "https://platform-api.max.ru/messages";
+async function sendMaxMessageToUser(userId, text) {
+  const url = `https://platform-api.max.ru/messages?user_id=${encodeURIComponent(userId)}`;
 
   const resp = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: process.env.MAX_BOT_TOKEN, // <-- без Bearer
+      Authorization: process.env.MAX_BOT_TOKEN, // без "Bearer "
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      user_id: userId,
-      text,
-    }),
+    body: JSON.stringify({ text }),
   });
 
   const body = await resp.text();
-  console.log("MAX send status:", resp.status, "body:", body);
-
   if (!resp.ok) {
     throw new Error(`MAX send failed: ${resp.status} ${body}`);
   }
+
+  console.log("MAX send OK:", body);
 }
