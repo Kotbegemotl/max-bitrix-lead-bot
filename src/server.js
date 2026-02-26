@@ -338,32 +338,13 @@ app.post("/max/webhook", async (req, res) => {
     console.log("MAX update:", JSON.stringify(req.body, null, 2));
     const update = req.body;
 
-    // user id: либо update.user.id (как у тебя в логах), либо update.message.sender.id (если придёт по доке)
-
-    // const userId = update?.user?.id || update?.message?.sender?.id;
-
-    const userId = update?.user?.id;            // <-- твой формат webhook
     const chatId = update?.chat?.id;
-
-    // текст: либо update.message.text (как у тебя), либо update.message.body.text (как в объектах Message/Body)
-
-    // const text =
-    //   update?.message?.text ||
-    //   update?.message?.body?.text ||
-    //   "";
-    // console.log("MAX userId:", userId, "text:", text);
-
     const text = update?.message?.text || "";
-    console.log("MAX user:", userId, "chat:", chatId, "text:", text);
 
+    console.log("MAX chat:", chatId, "text:", text);
 
-    // if (userId && text) {
-    //   await sendMaxMessageToUser(userId, "Привет! Я получил ваше сообщение 👍");
-    // }
-
-    // Для теста: отвечаем пользователю
-    if (userId) {
-      await sendMaxMessageToUser(userId, "Привет! Я получил ваше сообщение 👍");
+    if (chatId) {
+      await sendMaxMessageToChat(chatId, "Привет! Я получил ваше сообщение 👍");
     }
 
     return res.sendStatus(200);
@@ -375,14 +356,13 @@ app.post("/max/webhook", async (req, res) => {
 
 // ===== отправка сообщения в MAX =====
 
-async function sendMaxMessageToUser(userId, text) {
-  const uid = Number(userId);
-  const url = `https://platform-api.max.ru/messages?user_id=${uid}`;
+async function sendMaxMessageToChat(chatId, text) {
+  const url = `https://platform-api.max.ru/messages?chat_id=${encodeURIComponent(chatId)}`;
 
   const resp = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: process.env.MAX_BOT_TOKEN, // БЕЗ "Bearer "
+      Authorization: process.env.MAX_BOT_TOKEN, // как у тебя в curl
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ text }),
