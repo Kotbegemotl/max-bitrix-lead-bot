@@ -334,17 +334,30 @@ app.post("/max/webhook", async (req, res) => {
     const update = req.body;
 
     // user id: либо update.user.id (как у тебя в логах), либо update.message.sender.id (если придёт по доке)
-    const userId = update?.user?.id || update?.message?.sender?.id;
+
+    // const userId = update?.user?.id || update?.message?.sender?.id;
+
+    const userId = update?.user?.id;            // <-- твой формат webhook
+    const chatId = update?.chat?.id;
 
     // текст: либо update.message.text (как у тебя), либо update.message.body.text (как в объектах Message/Body)
-    const text =
-      update?.message?.text ||
-      update?.message?.body?.text ||
-      "";
 
-    console.log("MAX userId:", userId, "text:", text);
+    // const text =
+    //   update?.message?.text ||
+    //   update?.message?.body?.text ||
+    //   "";
+    // console.log("MAX userId:", userId, "text:", text);
 
-    if (userId && text) {
+    const text = update?.message?.text || "";
+    console.log("MAX user:", userId, "chat:", chatId, "text:", text);
+
+
+    // if (userId && text) {
+    //   await sendMaxMessageToUser(userId, "Привет! Я получил ваше сообщение 👍");
+    // }
+
+    // Для теста: отвечаем пользователю
+    if (userId) {
       await sendMaxMessageToUser(userId, "Привет! Я получил ваше сообщение 👍");
     }
 
@@ -358,21 +371,20 @@ app.post("/max/webhook", async (req, res) => {
 // ===== отправка сообщения в MAX =====
 
 async function sendMaxMessageToUser(userId, text) {
-  const url = `https://platform-api.max.ru/messages?user_id=${encodeURIComponent(userId)}`;
+  const uid = Number(userId);
+  const url = `https://platform-api.max.ru/messages?user_id=${uid}`;
 
   const resp = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: process.env.MAX_BOT_TOKEN, // без "Bearer "
+      Authorization: process.env.MAX_BOT_TOKEN, // БЕЗ "Bearer "
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ text }),
   });
 
   const body = await resp.text();
-  if (!resp.ok) {
-    throw new Error(`MAX send failed: ${resp.status} ${body}`);
-  }
+  console.log("MAX send status:", resp.status, "body:", body);
 
-  console.log("MAX send OK:", body);
+  if (!resp.ok) throw new Error(`MAX send failed: ${resp.status} ${body}`);
 }
