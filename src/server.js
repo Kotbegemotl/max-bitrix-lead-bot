@@ -323,8 +323,13 @@ app.get("/", (req, res) => res.status(200).send("Server is running"));
 app.get("/bitrix/webhook", (req, res) => res.status(200).send("OK (use POST here)"));
 
 // !!! запуск сервера
-app.listen(PORT, "127.0.0.1", () => {
-  console.log(`Server started on http://127.0.0.1:${PORT}`);
+
+// app.listen(PORT, "127.0.0.1", () => {
+//   console.log(`Server started on http://127.0.0.1:${PORT}`);
+// });
+
+app.listen(PORT, () => {
+  console.log(`Server started on http://localhost:${PORT}`);
 });
 
 // ===== MAX WEBHOOK =====
