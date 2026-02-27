@@ -333,19 +333,44 @@ app.listen(PORT, () => {
 });
 
 // ===== MAX WEBHOOK =====
+// app.post("/max/webhook", async (req, res) => {
+//   try {
+//     console.log("MAX update:", JSON.stringify(req.body, null, 2));
+//     const update = req.body || {};
+
+//     // по твоим логам update.message.recipient.chat_id и update.message.body.text
+//     const chatId = update?.message?.recipient?.chat_id;
+//     const senderUserId = update?.message?.sender?.user_id; // просто для логов
+//     const text = update?.message?.body?.text || update?.message?.text || "";
+
+//     console.log("MAX chat:", chatId, "senderUserId:", senderUserId, "text:", text);
+
+//     // Чтобы бот не отвечал сам себе (на всякий)
+//     if (update?.message?.sender?.is_bot) {
+//       return res.sendStatus(200);
+//     }
+
+//     if (chatId) {
+//       await sendMaxMessageToChat(chatId, "Привет! Я получил ваше сообщение 👍");
+//     }
+
+//     return res.sendStatus(200);
+//   } catch (e) {
+//     console.error("MAX webhook error:", e);
+//     return res.sendStatus(500);
+//   }
+// });
+
 app.post("/max/webhook", async (req, res) => {
   try {
-    console.log("MAX update:", JSON.stringify(req.body, null, 2));
     const update = req.body || {};
 
-    // по твоим логам update.message.recipient.chat_id и update.message.body.text
     const chatId = update?.message?.recipient?.chat_id;
-    const senderUserId = update?.message?.sender?.user_id; // просто для логов
-    const text = update?.message?.body?.text || update?.message?.text || "";
+    const senderUserId = update?.message?.sender?.user_id;
+    const text = update?.message?.body?.text || "";
 
-    console.log("MAX chat:", chatId, "senderUserId:", senderUserId, "text:", text);
+    console.log("MAX chat:", chatId, "sender:", senderUserId, "text:", text);
 
-    // Чтобы бот не отвечал сам себе (на всякий)
     if (update?.message?.sender?.is_bot) {
       return res.sendStatus(200);
     }
@@ -354,60 +379,83 @@ app.post("/max/webhook", async (req, res) => {
       await sendMaxMessageToChat(chatId, "Привет! Я получил ваше сообщение 👍");
     }
 
-    return res.sendStatus(200);
+    res.sendStatus(200);
   } catch (e) {
     console.error("MAX webhook error:", e);
-    return res.sendStatus(500);
+    res.sendStatus(500);
   }
 });
 
 // ===== отправка сообщения в MAX =====
 // Вариант 1 (как в curl): POST https://platform-api.max.ru/messages?chat_id=... body: {text:"..."}
 // + ретрай по формату Authorization (raw token / Bearer token)
+// async function sendMaxMessageToChat(chatId, text) {
+//   const tokenRaw = (process.env.MAX_BOT_TOKEN || "").trim();
+//   if (!tokenRaw) throw new Error("MAX_BOT_TOKEN is empty");
+
+//   const url = `https://platform-api.max.ru/messages?chat_id=${encodeURIComponent(
+//     String(chatId)
+//   )}`;
+
+//   // Пытаемся сначала "как в твоём curl": Authorization: <token>
+//   let resp = await fetch(url, {
+//     method: "POST",
+//     headers: {
+//       Authorization: tokenRaw,
+//       "Content-Type": "application/json",
+//     },
+//     body: JSON.stringify({ text }),
+//   });
+
+//   let bodyText = await resp.text();
+//   console.log("MAX send attempt#1:", resp.status, bodyText);
+
+//   // Если MAX говорит "No access token" — пробуем Bearer
+//   const looksLikeNoToken =
+//     resp.status === 401 && bodyText && bodyText.includes("No access token");
+
+//   if (!resp.ok && looksLikeNoToken) {
+//     const tokenBearer = tokenRaw.startsWith("Bearer ")
+//       ? tokenRaw
+//       : `Bearer ${tokenRaw}`;
+
+//     resp = await fetch(url, {
+//       method: "POST",
+//       headers: {
+//         Authorization: tokenBearer,
+//         "Content-Type": "application/json",
+//       },
+//       body: JSON.stringify({ text }),
+//     });
+
+//     bodyText = await resp.text();
+//     console.log("MAX send attempt#2 (Bearer):", resp.status, bodyText);
+//   }
+
+//   if (!resp.ok) {
+//     throw new Error(`MAX send failed: ${resp.status} ${bodyText}`);
+//   }
+// }
+
 async function sendMaxMessageToChat(chatId, text) {
-  const tokenRaw = (process.env.MAX_BOT_TOKEN || "").trim();
-  if (!tokenRaw) throw new Error("MAX_BOT_TOKEN is empty");
+  const token = (process.env.MAX_BOT_TOKEN || "").trim();
+  if (!token) throw new Error("MAX_BOT_TOKEN is empty");
 
   const url = `https://platform-api.max.ru/messages?chat_id=${encodeURIComponent(
     String(chatId)
   )}`;
 
-  // Пытаемся сначала "как в твоём curl": Authorization: <token>
-  let resp = await fetch(url, {
+  const resp = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: tokenRaw,
+      Authorization: token,   // ← без Bearer (подтверждено)
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ text }),
   });
 
-  let bodyText = await resp.text();
-  console.log("MAX send attempt#1:", resp.status, bodyText);
+  const body = await resp.text();
+  console.log("MAX send:", resp.status, body);
 
-  // Если MAX говорит "No access token" — пробуем Bearer
-  const looksLikeNoToken =
-    resp.status === 401 && bodyText && bodyText.includes("No access token");
-
-  if (!resp.ok && looksLikeNoToken) {
-    const tokenBearer = tokenRaw.startsWith("Bearer ")
-      ? tokenRaw
-      : `Bearer ${tokenRaw}`;
-
-    resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: tokenBearer,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text }),
-    });
-
-    bodyText = await resp.text();
-    console.log("MAX send attempt#2 (Bearer):", resp.status, bodyText);
-  }
-
-  if (!resp.ok) {
-    throw new Error(`MAX send failed: ${resp.status} ${bodyText}`);
-  }
+  if (!resp.ok) throw new Error(`MAX send failed: ${resp.status} ${body}`);
 }
