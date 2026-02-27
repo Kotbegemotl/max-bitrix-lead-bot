@@ -341,11 +341,11 @@ app.post("/max/webhook", async (req, res) => {
 
     const chatId = update?.message?.recipient?.chat_id;
     const userId = update?.message?.sender?.user_id;
-    const text = update?.message?.body?.text || "";
+    const text = update?.message?.body?.text || update?.message?.text || "";
 
     console.log("MAX chat:", chatId, "user:", userId, "text:", text);
 
-    if (chatId && text) {
+    if (chatId) {
       await sendMaxMessageToChat(chatId, "Привет! Я получил ваше сообщение 👍");
     }
 
@@ -359,21 +359,33 @@ app.post("/max/webhook", async (req, res) => {
 // ===== отправка сообщения в MAX =====
 
 async function sendMaxMessageToChat(chatId, text) {
-  const token = process.env.MAX_BOT_TOKEN?.trim();
+  const token = (process.env.MAX_BOT_TOKEN || "").trim();
+  if (!token) throw new Error("MAX_BOT_TOKEN is empty");
 
-  const url = `https://platform-api.max.ru/messages?chat_id=${encodeURIComponent(chatId)}`;
+  const url = "https://platform-api.max.ru/messages";
+
+  const payload = {
+    recipient: {
+      chat_id: Number(chatId),
+      chat_type: "dialog", // важно
+    },
+    body: {
+      text,
+    },
+  };
 
   const resp = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: token, // MAX принимает без Bearer
+      Authorization: token, // без Bearer, как в твоём curl
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      body: { text }   // ← ВАЖНО
-    }),
+    body: JSON.stringify(payload),
   });
 
-  const data = await resp.text();
-  console.log("MAX send status:", resp.status, "body:", data);
+  const body = await resp.text();
+  console.log("MAX send status:", resp.status, "body:", body);
+
+  if (!resp.ok) throw new Error(`MAX send failed: ${resp.status} ${body}`);
 }
+
