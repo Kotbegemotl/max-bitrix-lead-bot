@@ -338,31 +338,32 @@ app.post("/max/webhook", async (req, res) => {
     console.log("MAX update:", JSON.stringify(req.body, null, 2));
     const update = req.body;
 
-    const chatId = update?.chat?.id;
-    const text = update?.message?.text || "";
+    const chatId = update?.message?.recipient?.chat_id;
+    const userId = update?.message?.sender?.user_id;
+    const text = update?.message?.body?.text || "";
 
-    console.log("MAX chat:", chatId, "text:", text);
+    console.log("MAX chat:", chatId, "user:", userId, "text:", text);
 
-    if (chatId) {
+    if (chatId && text) {
       await sendMaxMessageToChat(chatId, "Привет! Я получил ваше сообщение 👍");
     }
 
-    return res.sendStatus(200);
+    res.sendStatus(200);
   } catch (e) {
     console.error("MAX webhook error:", e);
-    return res.sendStatus(500);
+    res.sendStatus(500);
   }
 });
 
 // ===== отправка сообщения в MAX =====
 
 async function sendMaxMessageToChat(chatId, text) {
-  const url = `https://platform-api.max.ru/messages?chat_id=${encodeURIComponent(chatId)}`;
+  const url = `https://platform-api.max.ru/messages?chat_id=${chatId}`;
 
   const resp = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: process.env.MAX_BOT_TOKEN, // как у тебя в curl
+      Authorization: `Bearer ${process.env.MAX_BOT_TOKEN}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ text }),
@@ -371,5 +372,7 @@ async function sendMaxMessageToChat(chatId, text) {
   const body = await resp.text();
   console.log("MAX send status:", resp.status, "body:", body);
 
-  if (!resp.ok) throw new Error(`MAX send failed: ${resp.status} ${body}`);
+  if (!resp.ok) {
+    throw new Error(`MAX send failed: ${resp.status} ${body}`);
+  }
 }
