@@ -498,18 +498,19 @@ function startDispatchLoop() {
   const settings = loadSettings();
   const periodMs = intervalToMs(settings);
 
-  console.log("[DISPATCH] loop started, interval =", settings.intervalValue, settings.intervalUnit);
+  console.log(
+    "[DISPATCH] loop started, interval =",
+    settings.intervalValue,
+    settings.intervalUnit
+  );
 
-  setInterval(async () => {
+  const tick = async () => {
     try {
       const messages = loadMessages().sort((a, b) => a.createdAt - b.createdAt);
-      if (!messages.length) return;
+      if (!messages.length) return console.log("[DISPATCH] no messages");
 
       const recipients = loadRecipients();
-      if (!recipients.length) {
-        console.log("[DISPATCH] no recipients yet");
-        return;
-      }
+      if (!recipients.length) return console.log("[DISPATCH] no recipients yet");
 
       const state = loadDispatchState();
       const idx = state.index % messages.length;
@@ -517,7 +518,9 @@ function startDispatchLoop() {
 
       const text = buildOutboundText(msg);
 
-      console.log(`[DISPATCH] sending message ${idx + 1}/${messages.length} to ${recipients.length} chats`);
+      console.log(
+        `[DISPATCH] sending message ${idx + 1}/${messages.length} to ${recipients.length} chats`
+      );
 
       for (const chatId of recipients) {
         try {
@@ -528,9 +531,14 @@ function startDispatchLoop() {
       }
 
       saveDispatchState({ index: idx + 1 });
-
     } catch (e) {
       console.error("[DISPATCH] tick error:", e);
     }
-  }, periodMs);
+  };
+
+  // ✅ 1) отправим сразу после старта
+  tick();
+
+  // ✅ 2) дальше — по расписанию
+  setInterval(tick, periodMs);
 }
