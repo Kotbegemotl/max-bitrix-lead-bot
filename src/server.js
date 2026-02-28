@@ -372,6 +372,7 @@ app.get("/bitrix/webhook", (req, res) => res.status(200).send("OK (use POST here
 app.listen(PORT, () => {
   console.log(`Server started on http://localhost:${PORT}`);
 });
+startDispatchLoop();
 
 // ===== MAX WEBHOOK =====
 app.post("/max/webhook", async (req, res) => {
@@ -491,3 +492,45 @@ async function dispatchNextMessageTick() {
 
 // запуск цикла после старта
 setTimeout(dispatchNextMessageTick, 10 * 1000); // через 10 сек после запуска
+
+// ===== включаем цикл рассылки сообщений в MAX =====
+function startDispatchLoop() {
+  const settings = loadSettings();
+  const periodMs = intervalToMs(settings);
+
+  console.log("[DISPATCH] loop started, interval =", settings.intervalValue, settings.intervalUnit);
+
+  setInterval(async () => {
+    try {
+      const messages = loadMessages().sort((a, b) => a.createdAt - b.createdAt);
+      if (!messages.length) return;
+
+      const recipients = loadRecipients();
+      if (!recipients.length) {
+        console.log("[DISPATCH] no recipients yet");
+        return;
+      }
+
+      const state = loadDispatchState();
+      const idx = state.index % messages.length;
+      const msg = messages[idx];
+
+      const text = buildOutboundText(msg);
+
+      console.log(`[DISPATCH] sending message ${idx + 1}/${messages.length} to ${recipients.length} chats`);
+
+      for (const chatId of recipients) {
+        try {
+          await sendMaxMessageToChat(chatId, text);
+        } catch (e) {
+          console.error("[DISPATCH] send failed chat", chatId, e.message);
+        }
+      }
+
+      saveDispatchState({ index: idx + 1 });
+
+    } catch (e) {
+      console.error("[DISPATCH] tick error:", e);
+    }
+  }, periodMs);
+}
