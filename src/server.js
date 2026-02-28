@@ -23,6 +23,54 @@ const DB_PATH = path.join(DATA_DIR, "messages.json");
 
 const SETTINGS_PATH = path.join(DATA_DIR, "settings.json");
 
+const RECIPIENTS_PATH = path.join(DATA_DIR, "recipients.json");
+const STATE_PATH = path.join(DATA_DIR, "dispatch_state.json");
+
+function loadRecipients() {
+  try {
+    if (!fs.existsSync(RECIPIENTS_PATH)) return [];
+    const arr = JSON.parse(fs.readFileSync(RECIPIENTS_PATH, "utf-8") || "[]");
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecipients(recipients) {
+  fs.writeFileSync(RECIPIENTS_PATH, JSON.stringify(recipients, null, 2), "utf-8");
+}
+
+function upsertRecipient(chatId) {
+  const id = Number(chatId);
+  if (!id) return;
+  const recipients = loadRecipients();
+  if (!recipients.includes(id)) {
+    recipients.push(id);
+    saveRecipients(recipients);
+  }
+}
+
+function loadDispatchState() {
+  try {
+    if (!fs.existsSync(STATE_PATH)) return { index: 0 };
+    const s = JSON.parse(fs.readFileSync(STATE_PATH, "utf-8") || "{}");
+    return { index: Number(s.index) || 0 };
+  } catch {
+    return { index: 0 };
+  }
+}
+
+function saveDispatchState(state) {
+  fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), "utf-8");
+}
+
+function intervalToMs({ intervalValue, intervalUnit }) {
+  const v = Math.max(1, Number(intervalValue) || 1);
+  const day = 24 * 60 * 60 * 1000;
+  if (intervalUnit === "days") return v * day;
+  return v * 7 * day; // weeks
+}
+
 function loadSettings() {
   try {
     if (!fs.existsSync(SETTINGS_PATH)) {
@@ -321,122 +369,60 @@ const X_HOOK_SECRET = process.env.BITRIX_WEBHOOK_SECRET || "";
 
 app.get("/", (req, res) => res.status(200).send("Server is running"));
 app.get("/bitrix/webhook", (req, res) => res.status(200).send("OK (use POST here)"));
-
-// !!! запуск сервера
-
-// app.listen(PORT, "127.0.0.1", () => {
-//   console.log(`Server started on http://127.0.0.1:${PORT}`);
-// });
-
 app.listen(PORT, () => {
   console.log(`Server started on http://localhost:${PORT}`);
 });
 
 // ===== MAX WEBHOOK =====
-// app.post("/max/webhook", async (req, res) => {
-//   try {
-//     console.log("MAX update:", JSON.stringify(req.body, null, 2));
-//     const update = req.body || {};
-
-//     // по твоим логам update.message.recipient.chat_id и update.message.body.text
-//     const chatId = update?.message?.recipient?.chat_id;
-//     const senderUserId = update?.message?.sender?.user_id; // просто для логов
-//     const text = update?.message?.body?.text || update?.message?.text || "";
-
-//     console.log("MAX chat:", chatId, "senderUserId:", senderUserId, "text:", text);
-
-//     // Чтобы бот не отвечал сам себе (на всякий)
-//     if (update?.message?.sender?.is_bot) {
-//       return res.sendStatus(200);
-//     }
-
-//     if (chatId) {
-//       await sendMaxMessageToChat(chatId, "Привет! Я получил ваше сообщение 👍");
-//     }
-
-//     return res.sendStatus(200);
-//   } catch (e) {
-//     console.error("MAX webhook error:", e);
-//     return res.sendStatus(500);
-//   }
-// });
-
 app.post("/max/webhook", async (req, res) => {
   try {
-    const update = req.body || {};
+    console.log("MAX update:", JSON.stringify(req.body, null, 2));
+    const update = req.body;
 
     const chatId = update?.message?.recipient?.chat_id;
     const senderUserId = update?.message?.sender?.user_id;
-    const text = update?.message?.body?.text || "";
+    const text = update?.message?.body?.text || update?.message?.text || "";
 
-    console.log("MAX chat:", chatId, "sender:", senderUserId, "text:", text);
+    console.log("MAX chat:", chatId, "senderUserId:", senderUserId, "text:", text);
 
-    if (update?.message?.sender?.is_bot) {
-      return res.sendStatus(200);
-    }
+    if (chatId) upsertRecipient(chatId);
 
+    // тестовый автоответ можно оставить или убрать
     if (chatId) {
       await sendMaxMessageToChat(chatId, "Привет! Я получил ваше сообщение 👍");
     }
 
-    res.sendStatus(200);
+    return res.sendStatus(200);
   } catch (e) {
     console.error("MAX webhook error:", e);
-    res.sendStatus(500);
+    return res.sendStatus(500);
   }
-});
+})
+
+// ===== сборка сообщений в MAX =====
+function buildPublicImageUrl(filename) {
+  const base = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
+  // если базу не задали — попробуем текущий домен
+  const safeBase = base || "https://bot.company-rs.ru";
+  return `${safeBase}/uploads/messages/${encodeURIComponent(filename)}`;
+}
+
+function buildOutboundText(msg) {
+  const lines = [];
+  const text = (msg?.text || "").trim();
+  if (text) lines.push(text);
+
+  const imgs = Array.isArray(msg?.images) ? msg.images : [];
+  if (imgs.length) {
+    lines.push("");
+    lines.push("📎 Файлы/изображения:");
+    for (const f of imgs) lines.push(buildPublicImageUrl(f));
+  }
+
+  return lines.join("\n");
+}
 
 // ===== отправка сообщения в MAX =====
-// Вариант 1 (как в curl): POST https://platform-api.max.ru/messages?chat_id=... body: {text:"..."}
-// + ретрай по формату Authorization (raw token / Bearer token)
-// async function sendMaxMessageToChat(chatId, text) {
-//   const tokenRaw = (process.env.MAX_BOT_TOKEN || "").trim();
-//   if (!tokenRaw) throw new Error("MAX_BOT_TOKEN is empty");
-
-//   const url = `https://platform-api.max.ru/messages?chat_id=${encodeURIComponent(
-//     String(chatId)
-//   )}`;
-
-//   // Пытаемся сначала "как в твоём curl": Authorization: <token>
-//   let resp = await fetch(url, {
-//     method: "POST",
-//     headers: {
-//       Authorization: tokenRaw,
-//       "Content-Type": "application/json",
-//     },
-//     body: JSON.stringify({ text }),
-//   });
-
-//   let bodyText = await resp.text();
-//   console.log("MAX send attempt#1:", resp.status, bodyText);
-
-//   // Если MAX говорит "No access token" — пробуем Bearer
-//   const looksLikeNoToken =
-//     resp.status === 401 && bodyText && bodyText.includes("No access token");
-
-//   if (!resp.ok && looksLikeNoToken) {
-//     const tokenBearer = tokenRaw.startsWith("Bearer ")
-//       ? tokenRaw
-//       : `Bearer ${tokenRaw}`;
-
-//     resp = await fetch(url, {
-//       method: "POST",
-//       headers: {
-//         Authorization: tokenBearer,
-//         "Content-Type": "application/json",
-//       },
-//       body: JSON.stringify({ text }),
-//     });
-
-//     bodyText = await resp.text();
-//     console.log("MAX send attempt#2 (Bearer):", resp.status, bodyText);
-//   }
-
-//   if (!resp.ok) {
-//     throw new Error(`MAX send failed: ${resp.status} ${bodyText}`);
-//   }
-// }
-
 async function sendMaxMessageToChat(chatId, text) {
   const token = (process.env.MAX_BOT_TOKEN || "").trim();
   if (!token) throw new Error("MAX_BOT_TOKEN is empty");
@@ -459,3 +445,49 @@ async function sendMaxMessageToChat(chatId, text) {
 
   if (!resp.ok) throw new Error(`MAX send failed: ${resp.status} ${body}`);
 }
+
+// ===== цикл рассылки сообщений в MAX =====
+async function dispatchNextMessageTick() {
+  try {
+    const settings = loadSettings();
+    const periodMs = intervalToMs(settings);
+
+    const messages = loadMessages().sort((a, b) => a.createdAt - b.createdAt);
+    if (!messages.length) return;
+
+    const recipients = loadRecipients();
+    if (!recipients.length) return;
+
+    const state = loadDispatchState();
+    const idx = state.index % messages.length;
+    const msg = messages[idx];
+
+    const outText = buildOutboundText(msg);
+
+    console.log(
+      `[DISPATCH] send message #${idx + 1}/${messages.length} to ${recipients.length} chats, interval=${settings.intervalValue} ${settings.intervalUnit}`
+    );
+
+    // отправляем всем (последовательно, чтобы не словить лимиты)
+    for (const chatId of recipients) {
+      try {
+        await sendMaxMessageToChat(chatId, outText);
+      } catch (e) {
+        console.error("[DISPATCH] failed chatId=", chatId, e?.message || e);
+      }
+    }
+
+    // сдвигаем указатель
+    saveDispatchState({ index: idx + 1 });
+
+    // планируем следующий запуск
+    setTimeout(dispatchNextMessageTick, periodMs);
+  } catch (e) {
+    console.error("[DISPATCH] tick error:", e);
+    // если упало — попробуем снова через минуту
+    setTimeout(dispatchNextMessageTick, 60 * 1000);
+  }
+}
+
+// запуск цикла после старта
+setTimeout(dispatchNextMessageTick, 10 * 1000); // через 10 сек после запуска
