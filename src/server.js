@@ -389,9 +389,9 @@ app.post("/max/webhook", async (req, res) => {
     if (chatId) upsertRecipient(chatId);
 
     // тестовый автоответ можно оставить или убрать
-    if (chatId) {
-      await sendMaxMessageToChat(chatId, "Привет! Я получил ваше сообщение 👍");
-    }
+    // if (chatId) {
+    //   await sendMaxMessageToChat(chatId, "Привет! Я получил ваше сообщение 👍");
+    // }
 
     return res.sendStatus(200);
   } catch (e) {
